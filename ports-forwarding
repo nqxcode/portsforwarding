@@ -1,0 +1,64 @@
+#!/usr/bin/env python
+
+import os
+import yaml
+import time
+import sys
+import signal
+
+remote_host = 'diolserver'
+ports_file = os.environ['HOME'] + '/.forwarding-ports.yaml'
+forwarding_cmd_template = 'ssh -L {}:localhost:{} -Nf ' + remote_host
+
+
+def signal_handler(signal, frame):
+    stop_forwarding_for_all_ports()
+    sys.exit(0)
+
+
+signal.signal(signal.SIGINT, signal_handler)
+signal.signal(signal.SIGTERM, signal_handler)
+
+
+def get_ports():
+    with open(ports_file, 'r') as f:
+        return yaml.load(f)
+
+
+def start_forwarding(local_port, remote_port):
+    os.system(forwarding_cmd_template.format(local_port, remote_port))
+
+
+def start_forwarding_for_all_ports():
+    ports = get_ports()
+    for (local_port, remote_port) in ports.items():
+        if not check_port(local_port):
+            stop_forwarding(local_port, remote_port)
+            start_forwarding(local_port, remote_port)
+            print(
+                'Port forwarding enabled for http://localhost:{} => {}:{}'.format(local_port, remote_host, remote_port)
+            )
+
+
+def stop_forwarding_for_all_ports():
+    ports = get_ports()
+    for (local_port, remote_port) in ports.items():
+        stop_forwarding(local_port, remote_port)
+
+
+def stop_forwarding(local_port, remote_port):
+    os.system('pkill -f \'{}\''.format(forwarding_cmd_template.format(local_port, remote_port)))
+
+
+def check_port(port):
+    return os.system('wget -q --spide --timeout=10 localhost:{}'.format(port)) == 0
+
+
+def main():
+    while True:
+        start_forwarding_for_all_ports()
+        time.sleep(10)
+
+
+if __name__ == "__main__":
+    main()
