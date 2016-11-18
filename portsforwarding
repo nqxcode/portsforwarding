@@ -7,7 +7,7 @@ import sys
 import signal
 
 remote_host = 'diolserver'
-ports_file = os.environ['HOME'] + '/.forwarding-ports.yaml'
+ports_file = os.environ['HOME'] + '/.portsforwarding.yaml'
 forwarding_cmd_template = 'ssh -L {}:localhost:{} -Nf ' + remote_host
 
 
