@@ -1,14 +1,13 @@
 #!/usr/bin/env python
 
 import os
-import yaml
+import json
 import time
 import sys
 import signal
 
-remote_host = 'diolserver'
-ports_file = os.environ['HOME'] + '/.portsforwarding.yaml'
-forwarding_cmd_template = 'ssh -L {}:localhost:{} -Nf ' + remote_host
+ports_file = os.environ['HOME'] + '/.portsforwarding.json'
+forwarding_cmd_template = 'ssh -L {}:localhost:{} -Nf {}'
 
 
 def signal_handler(signal, frame):
@@ -20,34 +19,45 @@ signal.signal(signal.SIGINT, signal_handler)
 signal.signal(signal.SIGTERM, signal_handler)
 
 
-def get_ports():
+def get_config():
     with open(ports_file, 'r') as f:
-        return yaml.load(f)
+        return json.load(f)
 
 
-def start_forwarding(local_port, remote_port):
-    os.system(forwarding_cmd_template.format(local_port, remote_port))
+def start_forwarding(remote_host, local_port, remote_port):
+    os.system(forwarding_cmd_template.format(local_port, remote_port, remote_host))
 
 
 def start_forwarding_for_all_ports():
-    ports = get_ports()
-    for (local_port, remote_port) in ports.items():
+    config = get_config()
+    remote_host = config['remote-host']
+    port_mappings = config['port-mappings']
+
+    for port_mapping in port_mappings:
+        local_port = port_mapping['local']
+        remote_port = port_mapping['remote']
+
         if not check_port(local_port):
-            stop_forwarding(local_port, remote_port)
-            start_forwarding(local_port, remote_port)
+            stop_forwarding(remote_host, local_port, remote_port)
+            start_forwarding(remote_host, local_port, remote_port)
             print(
                 'Port forwarding enabled for http://localhost:{} => {}:{}'.format(local_port, remote_host, remote_port)
             )
 
 
 def stop_forwarding_for_all_ports():
-    ports = get_ports()
-    for (local_port, remote_port) in ports.items():
-        stop_forwarding(local_port, remote_port)
+    config = get_config()
+    remote_host = config['remote-host']
+    port_mappings = config['port-mappings']
+
+    for (port_mapping) in port_mappings:
+        local_port = port_mapping['local']
+        remote_port = port_mapping['remote']
+        stop_forwarding(remote_host, local_port, remote_port)
 
 
-def stop_forwarding(local_port, remote_port):
-    os.system('pkill -f \'{}\''.format(forwarding_cmd_template.format(local_port, remote_port)))
+def stop_forwarding(remote_host, local_port, remote_port):
+    os.system('pkill -f \'{}\''.format(forwarding_cmd_template.format(local_port, remote_port, remote_host)))
 
 
 def check_port(port):
